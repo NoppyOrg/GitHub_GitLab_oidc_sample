@@ -79,10 +79,11 @@ Resources:
             Status: Enabled
             Prefix: "/"
             NoncurrentVersionExpiration:
-              NoncurrentDays: 90
+              NoncurrentDays: 30
               NewerNoncurrentVersions: 3
             AbortIncompleteMultipartUpload:
-              DaysAfterInitiation: 14
+              DaysAfterInitiation: 1
+            ExpiredObjectDeleteMarker: true
   LockStateTable:
     Type: AWS::DynamoDB::Table
     Properties:
