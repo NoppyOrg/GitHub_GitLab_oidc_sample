@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: setup GitHub/GitLab CI environment
+#----------------------------------------------
+Parameters:
+  #------------------
+  GitRepositoryName:
+    Description:
+    Type: String
+    Default: "<GitHubOrg>/<RepositoryName>"
+  OidCIdPThumprint:
+    Type: String
+
+#----------------------------------------------
+Resources:
+  #-- OIDC Provider
+  OidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: "https://token.actions.githubusercontent.com"
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - !Ref OidCIdPThumprint
+  #-- IAM Role
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GitHubActions-ExecutingTerraform-Role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated:
+                - !Ref OidcProvider
+            Condition:
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitRepositoryName}:*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+  #--- a S3 bucket and a DynamoDB Table for Terraform
+  #KeyForTerraform:
+  #  Type: AWS::KMS::Key
+  #  Properties:
+  #    EnableKeyRotation: true
+  #    PendingWindowInDays: 30
+  #    KeyPolicy:
+  #      Version: 2012-10-17
+  #      Statement:
+  #        - Sid: Enable IAM User Permissions
+  #          Effect: Allow
+  #          Principal:
+  #            AWS: "arn:aws:iam::111122223333:root"
+  #          Action: "kms:*"
+  #          Resource: "*"
