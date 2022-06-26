@@ -1,5 +1,5 @@
-# GitHub/GitLabでのAWS環境へのOIDCによる認証サンプル
-このコードは、GitHubまたはGitLabから、AWS環境にOIDC認証による接続を行い、
+# GitHubでのAWS環境へのOIDCによる認証サンプル
+このコードは、GitHubから、AWS環境にOIDC認証による接続を行い、
 ActionsTerraformなどによるCI実行を行うためのサンプル実装です。
 
 
@@ -19,8 +19,7 @@ OIDCプロバイダー設定のための事前情報取得として、OIDCプロ
 - GitHubまたはGitLabのOIDC
 #### OIDC IdP設定情報取得先URLの指定
 ```shell
-URL="https://token.actions.githubusercontent.com/.well-known/openid-configuration" #GitHubの場合
-# URL="https://gitlab.com/.well-known/openid-configuration" #GitLabの場合
+URL="https://token.actions.githubusercontent.com/.well-known/openid-configuration"
 
 #確認
 echo $URL
@@ -71,12 +70,14 @@ echo $THUMBPRINT
 - [AWS IAMユーザガイド: OpenID Connect ID プロバイダーのサムプリントの取得](https://docs.aws.amazon.com/ja_jp/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html)
 
 
-
-
-### OIDCプロバイダー/IAMロール作成/S3バケット/DynamoDB作成
-
-
-
+### OIDCプロバイダー/IAMロール/S3バケット/DynamoDB作成
+Terrafom実行に必要な、OIDCプロバイダー、IAMロール、バックエンド用のS3バケット、ロックテーブル用のDynamoDBテーブルをCloudFormationを利用し作成します。
+- 対象リージョン: `東京リージョン( ap-northeast-1 )`
+- スタック名: `terraform`
+- テンプレート: `./src/setup_resources_for_github.yaml`
+- パラメータ:
+    - GitRepositoryName: `Actionsを実行するGitHubのリポジトリ名(Organizations名/リポジトリ名)`を指定
+    - OidCIdPThumprint: `取得したサムプリント`を設定
 
 
 
