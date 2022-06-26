@@ -5,11 +5,10 @@ on:
       - main
   pull_request:
 env:
-  BRANCH_NAME: Main
   TERRAFORM_DIR: "./terraform/envs/development"
 jobs:
   terraform:
-    name: "$BRANCH_NAME Push Actions"
+    name: ”Main Push"
     runs-on: ubuntu-latest
     permissions:
       id-token: write

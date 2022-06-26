@@ -5,12 +5,20 @@ ActionsTerraformなどによるCI実行を行うためのサンプル実装で�
 
 ## セットアップ手順
 ## 事前準備
-実行環境として`AdministratorAccess`権限でマネージメントコンソール操作が可能なユーザを用意すること。
+実行環境として`AdministratorAccess`権限でマネージメントコンソール操作が可能なユーザを用意します。
 
 ## GitHub CI環境のセットアップ
 ### GitHubのリポジトリ作成
 - GitHubでリポジトリを作成します
 - 作成したリポジトリのリポジトリ名を控えます(`ManagedeServiceCore/managed-service-terraform`など)
+
+## AWS環境でのTerraform実行に必要なリソースの作成
+GitHub Actionsによる実行および、Terraformの実行に必要なリソースをAWS環境に設定します。
+具体的には以下のリソースを作成します。
+- OIDC Provider
+- IAMロール(GitHub ActionsからWebFederationによりAssumeRoleされる先のIAMロールであり、Terraformの実行ロール)
+- Terraformのバックエンド用S3バケット
+- Terraformのロック用DynamoDBテーブル
 
 ### OIDCプロバイダのサムプリント取得
 OIDCプロバイダー設定のための事前情報取得として、OIDCプロバイダーのサムプリント(Thumbprint)を取得します。
@@ -72,15 +80,53 @@ echo $THUMBPRINT
 
 ### OIDCプロバイダー/IAMロール/S3バケット/DynamoDB作成
 Terrafom実行に必要な、OIDCプロバイダー、IAMロール、バックエンド用のS3バケット、ロックテーブル用のDynamoDBテーブルをCloudFormationを利用し作成します。
+スタックは、以下の内容で作成します。
 - 対象リージョン: `東京リージョン( ap-northeast-1 )`
 - スタック名: `terraform`
 - テンプレート: `./src/setup_resources_for_github.yaml`
 - パラメータ:
     - GitRepositoryName: `Actionsを実行するGitHubのリポジトリ名(Organizations名/リポジトリ名)`を指定
-    - OidCIdPThumprint: `取得したサムプリント`を設定
+    - OidCIdPThumprint: `取得したサムプリント`を設定(デフォルトで指定済みですが、証明書が更新されている可能性があるため念の為確認すること)
 
+スタックの出力に後続のGitHubやTerraformの設定で必要な内容が出力されるので確認します。
+- GitHubへの設定に必要
+    - `RoleArn` : GitHubからAssumeRoleする先のロール名
+- Terraformコードへの設定に必要
+    - `BackendBacketName` : Terraformのバックエンド用のS3バケット名
+    - `LockStateTableName` : Terraformのロック用DynamoDBテーブルのテーブル名
 
+## GitHubリポジトリ設定
+GitHubリポジトリの`Actions Secrets`に`ASSUME_ROLE_ARN`というSecrets名でCloudFormationで作成したRoleのARNを指定します。
+1. リポジトリの`Settings`に移動します。
+1. 左のメニューから`Secrets`の`Actions`を選択します。
+1. 右上の`New repository secret`を選び、下記設定をします。
+    - `Name` :  `ASSUME_ROLE_ARN`と指定します。Actionsの中では`${{ secrets.ASSUME_ROLE_ARN }}`という形で呼び出されます。
+    - `Value` : CloudFormationのスタックの出力に`RoleArn`で出力されているIAMロールのARNを設定します。
+1. 設定されると`Repository secrets`に表示されます。
 
+設定画面
+![GitHub Secrets設定イメージ](./Documents/github_secrets_setting.png)
 
+##　Terraform変更
+### 既存の developmentディレクトリの置き換え
+`terraform/envs/template`フォルダの内容を、`terraform/envs/development`にコピーします。
 
+### バックエンド設定の変更
+`terraform/envs/template/backend.tf`で以下の二点を修正します。
+- `bucket` : CloudFormationのスタックの出力の`BackendBacketName`を指定します。
+-  `dynamodb_table` : CloudFormationのスタックの出力の`LockStateTableName`を指定します。
 
+- `terraform/envs/template/backend.tf`
+```
+terraform {
+  backend "s3" {
+    bucket         = "<CFnで作成したバケットの名前>"
+    key            = "development/terraform.tfstate"
+    dynamodb_table = "<CFnで作成したDynamoDBのテーブル名>"
+    region         = "ap-northeast-1"
+  }
+}
+```
+## Mainブランチへのプッシュ
+Terraformコードの修正まで完了したら、コードをリーモートのmainブランチにpushします。
+mainブランチにpushすると、Actionsでワークフローが自動実行されます。ワークフローが正常完了すれば成功です。
