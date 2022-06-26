@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: setup GitHub/GitLab CI environment
+#----------------------------------------------
+Parameters:
+  #------------------
+  GitRepositoryName:
+    Type: String
+    Default: "<GitHubOrg>/<RepositoryName>"
+  OidCIdPThumprint:
+    Type: String
+    Default: 6938FD4D98BAB03FAADB97B34396831E3780AEA1
+#----------------------------------------------
+Resources:
+  #-- OIDC Provider
+  OidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: "https://token.actions.githubusercontent.com"
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - !Ref OidCIdPThumprint
+  #-- IAM Role
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GitHubActions-ExecutingTerraform-Role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated:
+                - !Ref OidcProvider
+            Condition:
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitRepositoryName}:*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+  #--- a S3 bucket and a DynamoDB Table for Terraform
+  KeyForTerraform:
+    Type: AWS::KMS::Key
+    Properties:
+      EnableKeyRotation: true
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: 2012-10-17
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+  AliasForTerraformKey:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: "alias/Key-For-Terraform"
+      TargetKeyId: !Ref KeyForTerraform
+  Backend:
+    Type: AWS::S3::Bucket
+    Properties:
+      #BucketName: String
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref KeyForTerraform
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: Cleaning-Rule
+            Status: Enabled
+            Prefix: "/"
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 90
+              NewerNoncurrentVersions: 3
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 14
+  LockStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: terraform-lock-state-table
+      AttributeDefinitions:
+        - AttributeName: LockID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LockID
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+#----------------------------------------------
+Outputs:
+  RoleArn:
+    Value: !GetAtt Role.Arn
+  BackendBacketName:
+    Value: !Ref Backend
+  LockStateTableName:
+    Value: !Ref LockStateTable
