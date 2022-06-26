@@ -15,7 +15,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: ${{ secrets.MANAGED_SERVICE_ASSUME_ROLE_ARN }}
+          role-to-assume: ${{ secrets.ASSUME_ROLE_ARN }}
           aws-region: ap-northeast-1
       - name: AWS Sts Get Caller Identity
         run: aws sts get-caller-identity

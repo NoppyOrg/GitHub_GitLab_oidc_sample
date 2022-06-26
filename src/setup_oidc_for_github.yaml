@@ -4,12 +4,11 @@ Description: setup GitHub/GitLab CI environment
 Parameters:
   #------------------
   GitRepositoryName:
-    Description:
     Type: String
     Default: "<GitHubOrg>/<RepositoryName>"
   OidCIdPThumprint:
     Type: String
-
+    Default: 6938FD4D98BAB03FAADB97B34396831E3780AEA1
 #----------------------------------------------
 Resources:
   #-- OIDC Provider
